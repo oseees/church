@@ -1,0 +1,38 @@
+name: Build Windows App
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install Dependencies
+      run: |
+        pip install -r backend/requirements.txt
+        pip install pyinstaller
+        npm install
+
+    - name: Build Backend .exe
+      run: |
+        pyinstaller --onefile --name=backend_server --hidden-import=uvicorn --hidden-import=fastapi backend/main.py
+        mv dist/backend_server.exe .
+
+    - name: Build Electron App
+      run: |
+        npm run dist:win
+
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: ChurchApp-Windows
+        path: dist/win-unpacked/
