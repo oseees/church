@@ -7,6 +7,17 @@
   body {
     @apply bg-zinc-950 text-zinc-100 antialiased;
   }
+
+  /* Ensure form inputs are readable on light admin card backgrounds */
+  input,
+  select,
+  textarea {
+    @apply text-gray-900;
+  }
+  input::placeholder,
+  textarea::placeholder {
+    @apply text-gray-400;
+  }
 }
 
 /* react-markdown prose overrides for dark theme */
