@@ -1,0 +1,25 @@
+{
+  "functions": {
+    "app/api/webhook/route.ts": { "maxDuration": 10, "runtime": "nodejs18.x" },
+    "app/api/paystack/webhook/route.ts": { "maxDuration": 10, "runtime": "nodejs18.x" },
+    "app/api/queue/worker/route.ts": { "maxDuration": 30 }
+  },
+  "crons": [{ "path": "/api/queue/worker", "schedule": "0 * * * *" }],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self' 'unsafe-inline' https://js.paystack.co; frame-src https://checkout.paystack.com; style-src 'self' 'unsafe-inline'" },
+        { "key": "X-Frame-Options", "value": "DENY" }
+      ]
+    },
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        { "key": "Access-Control-Allow-Origin", "value": "*" },
+        { "key": "Access-Control-Allow-Methods", "value": "GET, POST, PATCH, OPTIONS" },
+        { "key": "Access-Control-Allow-Headers", "value": "Content-Type, x-paystack-signature" }
+      ]
+    }
+  ]
+}
