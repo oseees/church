@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+export const dynamic = 'force-dynamic';
 import { enqueueJob } from '@/lib/queue';
 
 export async function PATCH(

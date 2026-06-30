@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+export const dynamic = 'force-dynamic';
 
 // GET /api/admin/profit?from=ISO&to=ISO
 // Returns revenue (sales), expenses by category, total expenses, and net profit.
