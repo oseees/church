@@ -1,0 +1,53 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body {
+    @apply bg-zinc-950 text-zinc-100 antialiased;
+  }
+}
+
+/* react-markdown prose overrides for dark theme */
+.prose {
+  --tw-prose-body: #d4d4d8;
+  --tw-prose-headings: #f4f4f5;
+  --tw-prose-lead: #a1a1aa;
+  --tw-prose-links: #34d399;
+  --tw-prose-bold: #f4f4f5;
+  --tw-prose-counters: #71717a;
+  --tw-prose-bullets: #52525b;
+  --tw-prose-hr: #3f3f46;
+  --tw-prose-quotes: #f4f4f5;
+  --tw-prose-quote-borders: #34d399;
+  --tw-prose-captions: #a1a1aa;
+  --tw-prose-code: #f4f4f5;
+  --tw-prose-pre-code: #d4d4d8;
+  --tw-prose-pre-bg: #18181b;
+  --tw-prose-th-borders: #3f3f46;
+  --tw-prose-td-borders: #27272a;
+}
+
+/* ---- AnalysisReport list-item accent strong colors ---- */
+.analysis-li-data strong {
+  color: #fbbf24; /* amber-400 */
+}
+.analysis-li-fix strong {
+  color: #34d399; /* emerald-400 */
+}
+.analysis-li-why strong {
+  color: #38bdf8; /* sky-400 */
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #09090b;
+}
+::-webkit-scrollbar-thumb {
+  background: #3f3f46;
+  border-radius: 3px;
+}

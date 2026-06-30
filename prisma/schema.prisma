@@ -1,0 +1,142 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Customer {
+  id           String        @id @default(cuid())
+  phone        String        @unique
+  name         String
+  balance      Decimal       @default(0) @db.Decimal(12, 2)
+  creditLimit  Decimal       @default(0) @db.Decimal(12, 2)
+  orders       Order[]
+  transactions Transaction[]
+  notifications Notification[]
+  invoices     Invoice[]
+}
+
+model Product {
+  id         String  @id @default(cuid())
+  name       String
+  pricePerKg Decimal @db.Decimal(10, 2)
+  stock      Int     @default(0)
+  orders     Order[]
+}
+
+model Order {
+  id                 String        @id @default(cuid())
+  customerId         String
+  customer           Customer      @relation(fields: [customerId], references: [id])
+  productId          String
+  product            Product       @relation(fields: [productId], references: [id])
+  quantity           Int
+  total              Decimal       @db.Decimal(12, 2)
+  status             OrderStatus   @default(Pending)
+  notificationStatus String?
+  createdAt          DateTime      @default(now())
+  transaction        Transaction?
+}
+
+enum OrderStatus {
+  Pending
+  Confirmed
+  Delivered
+}
+
+model Transaction {
+  id           String          @id @default(cuid())
+  customerId   String
+  customer     Customer        @relation(fields: [customerId], references: [id])
+  type         TransactionType
+  amount       Decimal         @db.Decimal(12, 2)
+  balanceAfter Decimal         @db.Decimal(12, 2)
+  orderId      String?         @unique
+  order        Order?          @relation(fields: [orderId], references: [id])
+  paystackRef  String?         @unique
+  createdAt    DateTime        @default(now())
+}
+
+enum TransactionType {
+  SALE
+  PAYMENT
+}
+
+model Notification {
+  id         String   @id @default(cuid())
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id])
+  channel    String
+  type       String
+  status     String   @default("pending")
+  detail     String?
+  createdAt  DateTime @default(now())
+}
+
+model WebhookLog {
+  id          String   @id @default(cuid())
+  messageSid  String   @unique
+  processedAt DateTime @default(now())
+  status      String   @default("success")
+}
+
+// ── Farm Input / Expense Tracking ────────────────────────────────────────────────
+model Expense {
+  id          String       @id @default(cuid())
+  category    ExpenseCategory
+  description String
+  amount      Decimal      @db.Decimal(12, 2)
+  quantity    Decimal?     @db.Decimal(10, 2)
+  unit        String?
+  date        DateTime     @default(now())
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
+
+enum ExpenseCategory {
+  FEED
+  FEED_MATERIAL
+  DRUG
+  TRANSPORT
+  SALARY
+  OTHER
+}
+
+// ── Customer Invoicing ───────────────────────────────────────────────────────────
+model Invoice {
+  id           String         @id @default(cuid())
+  number       String         @unique
+  customerId   String
+  customer     Customer       @relation(fields: [customerId], references: [id])
+  issueDate    DateTime       @default(now())
+  dueDate      DateTime?
+  subtotal     Decimal        @db.Decimal(12, 2)
+  tax          Decimal        @default(0) @db.Decimal(12, 2)
+  total        Decimal        @db.Decimal(12, 2)
+  status       InvoiceStatus  @default(DRAFT)
+  notes        String?
+  items        InvoiceItem[]
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+}
+
+model InvoiceItem {
+  id          String   @id @default(cuid())
+  invoiceId   String
+  invoice     Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  description String
+  quantity    Decimal  @db.Decimal(10, 2)
+  unitPrice   Decimal  @db.Decimal(10, 2)
+  amount      Decimal  @db.Decimal(12, 2)
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PAID
+  OVERDUE
+  CANCELLED
+}
