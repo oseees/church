@@ -45,17 +45,25 @@ export default function InvoiceClient({
   initialInvoices: Invoice[];
   customers: Customer[];
 }) {
-  const [invoices, setInvoices] = useState(initialInvoices);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [message, setMessage] = useState('');
 
-  // Always hydrate from the live API on mount so the list reflects the
-  // true DB state, even if the page HTML was served from a stale cache.
-  useEffect(() => {
+  const fetchInvoices = () => {
     fetch('/api/admin/invoices', { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : []))
-      .then((fresh: Invoice[]) => setInvoices(fresh))
-      .catch(() => {});
+      .then((fresh: Invoice[]) => {
+        setInvoices(fresh);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  };
+
+  // Always hydrate from the live API on mount — ignore server-rendered
+  // initialInvoices because they may be stale from SW cache.
+  useEffect(() => {
+    fetchInvoices();
   }, []);
 
   // form
@@ -101,56 +109,61 @@ export default function InvoiceClient({
       setMessage('❌ Add at least one valid line item.');
       return;
     }
-    const res = await fetch('/api/admin/invoices', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        customerId,
-        dueDate: dueDate || null,
-        tax: taxAmount,
-        notes: notes || null,
-        items: items.map((it) => ({
-          description: it.description.trim(),
-          quantity: it.quantity,
-          unitPrice: it.unitPrice,
-        })),
-      }),
-    });
-    if (res.ok) {
-      const created = await res.json();
-      setInvoices((prev) => [created, ...prev]);
-      setShowForm(false);
-      setCustomerId('');
-      setDueDate('');
-      setTax('');
-      setNotes('');
-      setItems([{ description: '', quantity: 1, unitPrice: 0, amount: 0 }]);
-      setMessage('✅ Invoice created.');
-      // Re-fetch from server to guarantee the list matches the DB
-      fetch('/api/admin/invoices', { cache: 'no-store' })
-        .then((r) => (r.ok ? r.json() : []))
-        .then((fresh: Invoice[]) => setInvoices(fresh))
-        .catch(() => {});
-    } else {
-      const err = await res.json().catch(() => ({}));
-      setMessage(`❌ ${err.error || 'Failed to create invoice.'}`);
+    try {
+      const res = await fetch('/api/admin/invoices', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customerId,
+          dueDate: dueDate || null,
+          tax: taxAmount,
+          notes: notes || null,
+          items: items.map((it) => ({
+            description: it.description.trim(),
+            quantity: it.quantity,
+            unitPrice: it.unitPrice,
+          })),
+        }),
+      });
+      if (res.ok) {
+        setShowForm(false);
+        setCustomerId('');
+        setDueDate('');
+        setTax('');
+        setNotes('');
+        setItems([{ description: '', quantity: 1, unitPrice: 0, amount: 0 }]);
+        setMessage('✅ Invoice created.');
+        // Re-fetch from server to guarantee the list matches the DB
+        fetchInvoices();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        setMessage(`❌ ${err.error || 'Failed to create invoice.'}`);
+      }
+    } catch {
+      setMessage('❌ Network error. Please try again.');
     }
   };
 
   const updateStatus = async (id: string, status: InvoiceStatus) => {
-    const res = await fetch(`/api/admin/invoices/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status }),
-    });
-    if (res.ok) {
-      // Re-fetch to ensure consistency with server state
-      fetch('/api/admin/invoices', { cache: 'no-store' })
-        .then((r) => (r.ok ? r.json() : []))
-        .then((fresh: Invoice[]) => setInvoices(fresh))
-        .catch(() => {});
+    try {
+      const res = await fetch(`/api/admin/invoices/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      });
+      if (res.ok) {
+        fetchInvoices();
+      }
+    } catch {
+      // silent fail for status updates
     }
   };
+
+  if (loading) {
+    return (
+      <div className="text-center py-12 text-gray-500">Loading invoices...</div>
+    );
+  }
 
   return (
     <>

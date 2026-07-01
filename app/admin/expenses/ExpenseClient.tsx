@@ -33,7 +33,8 @@ const categoryColor: Record<ExpenseCategory, string> = {
 };
 
 export default function ExpenseClient({ initialExpenses }: { initialExpenses: Expense[] }) {
-  const [expenses, setExpenses] = useState(initialExpenses);
+  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [filter, setFilter] = useState<ExpenseCategory | 'ALL'>('ALL');
   const [message, setMessage] = useState('');
@@ -46,14 +47,20 @@ export default function ExpenseClient({ initialExpenses }: { initialExpenses: Ex
   const [unit, setUnit] = useState('');
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
 
-  // Always hydrate from the live API on mount so the list reflects the
-  // true DB state, even if the page HTML was served from a stale
-  // service-worker cache.
-  useEffect(() => {
+  const fetchExpenses = () => {
     fetch('/api/admin/expenses', { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : []))
-      .then((fresh: Expense[]) => setExpenses(fresh))
-      .catch(() => {});
+      .then((fresh: Expense[]) => {
+        setExpenses(fresh);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  };
+
+  // Always hydrate from the live API on mount — ignore server-rendered
+  // initialExpenses because they may be stale from SW cache.
+  useEffect(() => {
+    fetchExpenses();
   }, []);
 
   const submit = async (e: React.FormEvent) => {
@@ -65,35 +72,33 @@ export default function ExpenseClient({ initialExpenses }: { initialExpenses: Ex
     }
     setSubmitting(true);
     setMessage('');
-    const res = await fetch('/api/admin/expenses', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        category,
-        description: description.trim(),
-        amount: amt,
-        quantity: quantity ? parseFloat(quantity) : null,
-        unit: unit || null,
-        date,
-      }),
-    });
-    if (res.ok) {
-      const created = await res.json();
-      setExpenses((prev) => [created, ...prev]);
-      setDescription('');
-      setAmount('');
-      setQuantity('');
-      setUnit('');
-      setMessage('✅ Expense recorded.');
-      // Re-fetch from server to guarantee the list matches the DB
-      // (guards against stale state / cached page HTML).
-      fetch('/api/admin/expenses', { cache: 'no-store' })
-        .then((r) => (r.ok ? r.json() : []))
-        .then((fresh: Expense[]) => setExpenses(fresh))
-        .catch(() => {});
-    } else {
-      const err = await res.json().catch(() => ({}));
-      setMessage(`❌ ${err.error || 'Failed to record expense.'}`);
+    try {
+      const res = await fetch('/api/admin/expenses', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          category,
+          description: description.trim(),
+          amount: amt,
+          quantity: quantity ? parseFloat(quantity) : null,
+          unit: unit || null,
+          date,
+        }),
+      });
+      if (res.ok) {
+        setDescription('');
+        setAmount('');
+        setQuantity('');
+        setUnit('');
+        setMessage('✅ Expense recorded.');
+        // Re-fetch from server to guarantee the list matches the DB
+        fetchExpenses();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        setMessage(`❌ ${err.error || 'Failed to record expense.'}`);
+      }
+    } catch {
+      setMessage('❌ Network error. Please try again.');
     }
     setSubmitting(false);
   };
@@ -106,6 +111,12 @@ export default function ExpenseClient({ initialExpenses }: { initialExpenses: Ex
 
   const filtered = filter === 'ALL' ? expenses : expenses.filter((e) => e.category === filter);
   const total = filtered.reduce((s, e) => s + e.amount, 0);
+
+  if (loading) {
+    return (
+      <div className="text-center py-12 text-gray-500">Loading expenses...</div>
+    );
+  }
 
   return (
     <>
