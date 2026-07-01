@@ -77,7 +77,7 @@ export default function AdminOrdersPage() {
                 <p className="font-medium text-gray-900">{o.product.name}</p>
                 <p className="text-sm text-gray-500">{o.customer.phone}</p>
               </div>
-              <span className="font-semibold">${Number(o.total).toFixed(2)}</span>
+              <span className="font-semibold">₦{Number(o.total).toFixed(2)}</span>
             </div>
             <div className="flex justify-between items-center text-sm">
               <span>Qty: {o.quantity}kg</span>
@@ -129,7 +129,7 @@ export default function AdminOrdersPage() {
                   <td className="px-4 py-3">{o.product.name}</td>
                   <td className="px-4 py-3">{o.quantity}kg</td>
                   <td className="px-4 py-3 font-medium">
-                    ${Number(o.total).toFixed(2)}
+                    ₦{Number(o.total).toFixed(2)}
                   </td>
                   <td className="px-4 py-3">
                     <select

@@ -9,6 +9,7 @@ export type InvoiceItem = {
   description: string;
   quantity: number;
   unitPrice: number;
+  cost: number;
   amount: number;
 };
 
@@ -21,6 +22,7 @@ export type Invoice = {
   subtotal: number;
   tax: number;
   total: number;
+  totalCost: number;
   status: InvoiceStatus;
   notes: string | null;
   items: InvoiceItem[];
@@ -72,7 +74,7 @@ export default function InvoiceClient({
   const [tax, setTax] = useState('');
   const [notes, setNotes] = useState('');
   const [items, setItems] = useState<InvoiceItem[]>([
-    { description: '', quantity: 1, unitPrice: 0, amount: 0 },
+    { description: '', quantity: 1, unitPrice: 0, cost: 0, amount: 0 },
   ]);
 
   const updateItem = (i: number, field: keyof InvoiceItem, value: string) => {
@@ -81,7 +83,7 @@ export default function InvoiceClient({
         if (idx !== i) return it;
         const next = { ...it };
         if (field === 'description') next.description = value;
-        else if (field === 'quantity' || field === 'unitPrice') {
+        else if (field === 'quantity' || field === 'unitPrice' || field === 'cost') {
           next[field] = parseFloat(value) || 0;
           next.amount = Number((next.quantity * next.unitPrice).toFixed(2));
         }
@@ -91,11 +93,12 @@ export default function InvoiceClient({
   };
 
   const addItem = () =>
-    setItems((prev) => [...prev, { description: '', quantity: 1, unitPrice: 0, amount: 0 }]);
+    setItems((prev) => [...prev, { description: '', quantity: 1, unitPrice: 0, cost: 0, amount: 0 }]);
   const removeItem = (i: number) =>
     setItems((prev) => prev.filter((_, idx) => idx !== i));
 
   const subtotal = items.reduce((s, it) => s + it.amount, 0);
+  const totalCost = items.reduce((s, it) => s + (it.cost || 0), 0);
   const taxAmount = parseFloat(tax) || 0;
   const total = subtotal + taxAmount;
 
@@ -122,6 +125,7 @@ export default function InvoiceClient({
             description: it.description.trim(),
             quantity: it.quantity,
             unitPrice: it.unitPrice,
+            cost: it.cost || 0,
           })),
         }),
       });
@@ -131,7 +135,7 @@ export default function InvoiceClient({
         setDueDate('');
         setTax('');
         setNotes('');
-        setItems([{ description: '', quantity: 1, unitPrice: 0, amount: 0 }]);
+        setItems([{ description: '', quantity: 1, unitPrice: 0, cost: 0, amount: 0 }]);
         setMessage('✅ Invoice created.');
         // Re-fetch from server to guarantee the list matches the DB
         fetchInvoices();
@@ -225,21 +229,27 @@ export default function InvoiceClient({
                     value={it.description}
                     onChange={(e) => updateItem(i, 'description', e.target.value)}
                     placeholder="Description"
-                    className="col-span-5 border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-orange-500"
+                    className="col-span-4 border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-orange-500"
                   />
                   <input
-                    type="number" min="0" step="0.01" value={it.quantity}
+                    type="number" min="0" step="0.01" value={it.quantity || ''}
                     onChange={(e) => updateItem(i, 'quantity', e.target.value)}
                     placeholder="Qty"
-                    className="col-span-2 border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-orange-500"
+                    className="col-span-1 border border-gray-300 rounded-lg px-2 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-orange-500"
                   />
                   <input
-                    type="number" min="0" step="0.01" value={it.unitPrice}
+                    type="number" min="0" step="0.01" value={it.unitPrice || ''}
                     onChange={(e) => updateItem(i, 'unitPrice', e.target.value)}
-                    placeholder="Unit Price"
-                    className="col-span-2 border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-orange-500"
+                    placeholder="Price"
+                    className="col-span-2 border border-gray-300 rounded-lg px-2 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-orange-500"
                   />
-                  <span className="col-span-2 text-sm text-gray-700">₦{it.amount.toFixed(2)}</span>
+                  <input
+                    type="number" min="0" step="0.01" value={it.cost || ''}
+                    onChange={(e) => updateItem(i, 'cost', e.target.value)}
+                    placeholder="Cost"
+                    className="col-span-2 border border-gray-300 rounded-lg px-2 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-orange-500"
+                  />
+                  <span className="col-span-2 text-sm text-gray-700 text-right">₦{it.amount.toFixed(2)}</span>
                   <button
                     type="button" onClick={() => removeItem(i)}
                     className="col-span-1 text-xs text-red-500 hover:text-red-700"
@@ -272,6 +282,11 @@ export default function InvoiceClient({
               <p>Subtotal: ₦{subtotal.toFixed(2)}</p>
               <p>Tax: ₦{taxAmount.toFixed(2)}</p>
               <p className="text-base font-bold text-gray-900">Total: ₦{total.toFixed(2)}</p>
+              {totalCost > 0 && (
+                <p className="text-xs text-gray-500">
+                  Cost: ₦{totalCost.toFixed(2)} · Profit: <span className={total - totalCost >= 0 ? 'text-green-600 font-medium' : 'text-red-600 font-medium'}>₦{(total - totalCost).toFixed(2)}</span>
+                </p>
+              )}
             </div>
             <button
               type="submit"
@@ -288,45 +303,56 @@ export default function InvoiceClient({
         {invoices.length === 0 && (
           <p className="text-gray-500 text-center py-8 bg-white rounded-xl shadow">No invoices yet.</p>
         )}
-        {invoices.map((inv) => (
-          <div key={inv.id} className="bg-white rounded-xl shadow p-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="font-mono text-sm font-semibold text-gray-900">{inv.number}</span>
-                  <span className={`text-xs font-medium rounded-full px-2.5 py-0.5 ${statusColor[inv.status]}`}>
-                    {inv.status}
-                  </span>
+        {invoices.map((inv) => {
+          const profit = inv.total - (inv.totalCost || 0);
+          const showProfit = inv.totalCost > 0;
+          return (
+            <div key={inv.id} className="bg-white rounded-xl shadow p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-sm font-semibold text-gray-900">{inv.number}</span>
+                    <span className={`text-xs font-medium rounded-full px-2.5 py-0.5 ${statusColor[inv.status]}`}>
+                      {inv.status}
+                    </span>
+                  </div>
+                  <p className="text-sm text-gray-700 mt-1">{inv.customer.name} · {inv.customer.phone}</p>
+                  <p className="text-xs text-gray-500">
+                    Issued {new Date(inv.issueDate).toLocaleDateString()}
+                    {inv.dueDate ? ` · Due ${new Date(inv.dueDate).toLocaleDateString()}` : ''}
+                    {' · '}{inv.items.length} item(s)
+                  </p>
                 </div>
-                <p className="text-sm text-gray-700 mt-1">{inv.customer.name} · {inv.customer.phone}</p>
-                <p className="text-xs text-gray-500">
-                  Issued {new Date(inv.issueDate).toLocaleDateString()}
-                  {inv.dueDate ? ` · Due ${new Date(inv.dueDate).toLocaleDateString()}` : ''}
-                  {' · '}{inv.items.length} item(s)
-                </p>
-              </div>
-              <div className="flex items-center gap-3">
-                <span className="font-semibold text-gray-900">₦{inv.total.toFixed(2)}</span>
-                <select
-                  value={inv.status}
-                  onChange={(e) => updateStatus(inv.id, e.target.value as InvoiceStatus)}
-                  className="text-xs border border-gray-200 rounded-lg px-2 py-1 text-gray-900 focus:ring-2 focus:ring-orange-500"
-                >
-                  {STATUSES.map((s) => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                </select>
-                <a
-                  href={`/api/admin/invoices/${inv.id}/pdf`}
-                  target="_blank" rel="noreferrer"
-                  className="text-xs text-orange-600 hover:text-orange-800 font-medium"
-                >
-                  PDF
-                </a>
+                <div className="flex items-center gap-3">
+                  <div className="text-right">
+                    <span className="font-semibold text-gray-900">₦{inv.total.toFixed(2)}</span>
+                    {inv.status === 'PAID' && showProfit && (
+                      <p className={`text-xs font-medium ${profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {profit >= 0 ? '📈 Profit' : '📉 Loss'}: ₦{Math.abs(profit).toFixed(2)}
+                      </p>
+                    )}
+                  </div>
+                  <select
+                    value={inv.status}
+                    onChange={(e) => updateStatus(inv.id, e.target.value as InvoiceStatus)}
+                    className="text-xs border border-gray-200 rounded-lg px-2 py-1 text-gray-900 focus:ring-2 focus:ring-orange-500"
+                  >
+                    {STATUSES.map((s) => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                  <a
+                    href={`/api/admin/invoices/${inv.id}/pdf`}
+                    target="_blank" rel="noreferrer"
+                    className="text-xs text-orange-600 hover:text-orange-800 font-medium"
+                  >
+                    PDF
+                  </a>
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </>
   );

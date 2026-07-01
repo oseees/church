@@ -3,11 +3,16 @@ import ExpenseClient, { type Expense } from './ExpenseClient';
 
 export const dynamic = 'force-dynamic';
 
+const PAGE_SIZE = 50;
+
 export default async function AdminExpensesPage() {
-  const expenses = await prisma.expense.findMany({
-    orderBy: { date: 'desc' },
-    take: 500,
-  });
+  const [expenses, total] = await Promise.all([
+    prisma.expense.findMany({
+      orderBy: { date: 'desc' },
+      take: PAGE_SIZE,
+    }),
+    prisma.expense.count(),
+  ]);
 
   const serialized: Expense[] = expenses.map((e) => ({
     id: e.id,
@@ -26,7 +31,7 @@ export default async function AdminExpensesPage() {
         <a href="/admin" className="text-sm text-gray-500 hover:text-gray-700">← Back to Admin</a>
       </div>
 
-      <ExpenseClient initialExpenses={serialized} />
+      <ExpenseClient initialExpenses={serialized} initialTotal={total} />
     </div>
   );
 }

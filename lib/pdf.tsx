@@ -139,6 +139,7 @@ interface InvoiceItemPDF {
   quantity: number;
   unitPrice: number;
   amount: number;
+  cost: number;
 }
 
 interface InvoicePDFProps {
@@ -150,6 +151,7 @@ interface InvoicePDFProps {
   subtotal: number;
   tax: number;
   total: number;
+  totalCost: number;
   status: string;
   notes: string | null;
 }
@@ -173,7 +175,9 @@ const invoiceStyles = StyleSheet.create({
   footer: { fontSize: 9, color: '#999', textAlign: 'center', marginTop: 30 },
 });
 
-function InvoicePDF({ number, customer, issueDate, dueDate, items, subtotal, tax, total, status, notes }: InvoicePDFProps) {
+function InvoicePDF({ number, customer, issueDate, dueDate, items, subtotal, tax, total, totalCost, status, notes }: InvoicePDFProps) {
+  const profit = total - totalCost;
+  const showProfit = totalCost > 0;
   return (
     <Document>
       <Page size="A4" style={invoiceStyles.page}>
@@ -212,7 +216,8 @@ function InvoicePDF({ number, customer, issueDate, dueDate, items, subtotal, tax
           <View style={[invoiceStyles.row, invoiceStyles.tableHead]}>
             <Text style={invoiceStyles.colDesc}>Description</Text>
             <Text style={invoiceStyles.colQty}>Qty</Text>
-            <Text style={invoiceStyles.colPrice}>Unit Price</Text>
+            <Text style={invoiceStyles.colPrice}>Price</Text>
+            <Text style={invoiceStyles.colPrice}>Cost</Text>
             <Text style={invoiceStyles.colAmount}>Amount</Text>
           </View>
           {items.map((it, i) => (
@@ -220,6 +225,7 @@ function InvoicePDF({ number, customer, issueDate, dueDate, items, subtotal, tax
               <Text style={invoiceStyles.colDesc}>{it.description}</Text>
               <Text style={invoiceStyles.colQty}>{it.quantity}</Text>
               <Text style={invoiceStyles.colPrice}>₦{it.unitPrice.toFixed(2)}</Text>
+              <Text style={invoiceStyles.colPrice}>₦{it.cost.toFixed(2)}</Text>
               <Text style={invoiceStyles.colAmount}>₦{it.amount.toFixed(2)}</Text>
             </View>
           ))}
@@ -237,6 +243,16 @@ function InvoicePDF({ number, customer, issueDate, dueDate, items, subtotal, tax
           <View style={invoiceStyles.total}>
             <Text>Total Due: ₦{total.toFixed(2)}</Text>
           </View>
+          {showProfit ? (
+            <View style={[invoiceStyles.totalsRow, { marginTop: 8, paddingTop: 6, borderTop: '1px solid #ccc' }]}>
+              <Text style={[invoiceStyles.meta, { fontWeight: 'bold' }]}>
+                {profit >= 0 ? '📈 Profit' : '📉 Loss'}:
+              </Text>
+              <Text style={{ fontWeight: 'bold', color: profit >= 0 ? '#16a34a' : '#dc2626' }}>
+                ₦{Math.abs(profit).toFixed(2)}
+              </Text>
+            </View>
+          ) : null}
         </View>
 
         {notes ? (
@@ -273,10 +289,12 @@ export async function generateInvoicePDF(invoiceId: string): Promise<Buffer> {
         quantity: Number(it.quantity),
         unitPrice: Number(it.unitPrice),
         amount: Number(it.amount),
+        cost: Number(it.cost),
       })),
       subtotal: Number(invoice.subtotal),
       tax: Number(invoice.tax),
       total: Number(invoice.total),
+      totalCost: invoice.items.reduce((s, it) => s + Number(it.cost), 0),
       status: invoice.status,
       notes: invoice.notes,
     })

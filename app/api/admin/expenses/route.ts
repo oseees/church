@@ -2,13 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 export const dynamic = 'force-dynamic';
 
-const VALID_CATEGORIES = ['FEED', 'FEED_MATERIAL', 'DRUG', 'TRANSPORT', 'SALARY', 'OTHER'];
+const VALID_CATEGORIES = ['FEED', 'FEED_MATERIAL', 'DRUG', 'TRANSPORT', 'SALARY', 'BIRDS', 'MORTALITY', 'OTHER'];
+const PAGE_SIZE = 50;
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const category = searchParams.get('category') || undefined;
   const from = searchParams.get('from');
   const to = searchParams.get('to');
+  const skip = Math.max(0, parseInt(searchParams.get('skip') || '0', 10) || 0);
+  const take = Math.min(PAGE_SIZE, Math.max(1, parseInt(searchParams.get('take') || String(PAGE_SIZE), 10) || PAGE_SIZE));
 
   const where: Record<string, unknown> = {};
   if (category) where.category = category;
@@ -18,14 +21,18 @@ export async function GET(request: NextRequest) {
     if (to) (where.date as Record<string, unknown>).lte = new Date(to);
   }
 
-  const expenses = await prisma.expense.findMany({
-    where,
-    orderBy: { date: 'desc' },
-    take: 500,
-  });
+  const [expenses, total] = await Promise.all([
+    prisma.expense.findMany({
+      where,
+      orderBy: { date: 'desc' },
+      skip,
+      take,
+    }),
+    prisma.expense.count({ where }),
+  ]);
 
-  return NextResponse.json(
-    expenses.map((e) => ({
+  const res = NextResponse.json({
+    expenses: expenses.map((e) => ({
       id: e.id,
       category: e.category,
       description: e.description,
@@ -33,8 +40,16 @@ export async function GET(request: NextRequest) {
       quantity: e.quantity ? Number(e.quantity) : null,
       unit: e.unit,
       date: e.date.toISOString(),
-    }))
-  );
+    })),
+    total,
+    skip,
+    take,
+  });
+
+  // Cache for 30s on CDN/browser, stale-while-revalidate for 5min on slow tablets
+  res.headers.set('Cache-Control', 'public, max-age=30, s-maxage=30, stale-while-revalidate=300');
+
+  return res;
 }
 
 export async function POST(request: NextRequest) {

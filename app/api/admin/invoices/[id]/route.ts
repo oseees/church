@@ -30,6 +30,7 @@ export async function GET(
     subtotal: Number(invoice.subtotal),
     tax: Number(invoice.tax),
     total: Number(invoice.total),
+    totalCost: invoice.items.reduce((s, it) => s + Number(it.cost), 0),
     status: invoice.status,
     notes: invoice.notes,
     items: invoice.items.map((it) => ({
@@ -37,6 +38,7 @@ export async function GET(
       description: it.description,
       quantity: Number(it.quantity),
       unitPrice: Number(it.unitPrice),
+      cost: Number(it.cost),
       amount: Number(it.amount),
     })),
   });

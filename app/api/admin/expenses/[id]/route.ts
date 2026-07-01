@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 export const dynamic = 'force-dynamic';
 
-const VALID_CATEGORIES = ['FEED', 'FEED_MATERIAL', 'DRUG', 'TRANSPORT', 'SALARY', 'OTHER'];
+const VALID_CATEGORIES = ['FEED', 'FEED_MATERIAL', 'DRUG', 'TRANSPORT', 'SALARY', 'BIRDS', 'MORTALITY', 'OTHER'];
 
 export async function PATCH(
   request: NextRequest,

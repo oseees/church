@@ -50,6 +50,7 @@ export async function GET(request: NextRequest) {
       subtotal: Number(inv.subtotal),
       tax: Number(inv.tax),
       total: Number(inv.total),
+      totalCost: inv.items.reduce((s, it) => s + Number(it.cost), 0),
       status: inv.status,
       notes: inv.notes,
       items: inv.items.map((it) => ({
@@ -57,6 +58,7 @@ export async function GET(request: NextRequest) {
         description: it.description,
         quantity: Number(it.quantity),
         unitPrice: Number(it.unitPrice),
+        cost: Number(it.cost),
         amount: Number(it.amount),
       })),
     }))
@@ -80,7 +82,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Validate + compute amounts
-  const lineItems = items.map((it: { description: string; quantity: number; unitPrice: number }) => {
+  const lineItems = items.map((it: { description: string; quantity: number; unitPrice: number; cost?: number }) => {
     if (!it.description || typeof it.description !== 'string') {
       throw new Error('Item description required');
     }
@@ -91,11 +93,13 @@ export async function POST(request: NextRequest) {
       throw new Error('Item unitPrice must be non-negative');
     }
     const amount = it.quantity * it.unitPrice;
+    const itemCost = typeof it.cost === 'number' && it.cost >= 0 ? it.cost : 0;
     return {
       description: it.description.trim(),
       quantity: it.quantity,
       unitPrice: it.unitPrice,
       amount,
+      cost: itemCost,
     };
   });
 
@@ -132,6 +136,7 @@ export async function POST(request: NextRequest) {
     subtotal: Number(created.subtotal),
     tax: Number(created.tax),
     total: Number(created.total),
+    totalCost: created.items.reduce((s, it) => s + Number(it.cost), 0),
     status: created.status,
     notes: created.notes,
     items: created.items.map((it) => ({
@@ -139,6 +144,7 @@ export async function POST(request: NextRequest) {
       description: it.description,
       quantity: Number(it.quantity),
       unitPrice: Number(it.unitPrice),
+      cost: Number(it.cost),
       amount: Number(it.amount),
     })),
   }, { status: 201 });

@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
-export type ExpenseCategory = 'FEED' | 'FEED_MATERIAL' | 'DRUG' | 'TRANSPORT' | 'SALARY' | 'OTHER';
+export type ExpenseCategory = 'FEED' | 'FEED_MATERIAL' | 'DRUG' | 'TRANSPORT' | 'SALARY' | 'BIRDS' | 'MORTALITY' | 'OTHER';
 
 export type Expense = {
   id: string;
@@ -20,6 +20,8 @@ const CATEGORIES: { value: ExpenseCategory; label: string; icon: string }[] = [
   { value: 'DRUG', label: 'Drugs', icon: '💊' },
   { value: 'TRANSPORT', label: 'Transport', icon: '🚚' },
   { value: 'SALARY', label: 'Salary', icon: '👷' },
+  { value: 'BIRDS', label: 'Birds', icon: '🐔' },
+  { value: 'MORTALITY', label: 'Mortality', icon: '💀' },
   { value: 'OTHER', label: 'Other', icon: '📦' },
 ];
 
@@ -29,43 +31,71 @@ const categoryColor: Record<ExpenseCategory, string> = {
   DRUG: 'bg-purple-100 text-purple-800',
   TRANSPORT: 'bg-blue-100 text-blue-800',
   SALARY: 'bg-orange-100 text-orange-800',
+  BIRDS: 'bg-yellow-100 text-yellow-800',
+  MORTALITY: 'bg-red-100 text-red-800',
   OTHER: 'bg-gray-100 text-gray-800',
 };
 
-export default function ExpenseClient({ initialExpenses }: { initialExpenses: Expense[] }) {
-  const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [loading, setLoading] = useState(true);
+const PAGE_SIZE = 50;
+
+export default function ExpenseClient({
+  initialExpenses,
+  initialTotal,
+}: {
+  initialExpenses: Expense[];
+  initialTotal: number;
+}) {
+  const [expenses, setExpenses] = useState<Expense[]>(initialExpenses);
+  const [total, setTotal] = useState<number>(initialTotal);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [filter, setFilter] = useState<ExpenseCategory | 'ALL'>('ALL');
   const [message, setMessage] = useState('');
+  const [hydrated, setHydrated] = useState(false);
 
   // form state
   const [category, setCategory] = useState<ExpenseCategory>('FEED');
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
   const [quantity, setQuantity] = useState('');
+  const [unitPrice, setUnitPrice] = useState('');
   const [unit, setUnit] = useState('');
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
 
-  const fetchExpenses = () => {
-    fetch('/api/admin/expenses', { cache: 'no-store' })
-      .then((r) => (r.ok ? r.json() : []))
-      .then((fresh: Expense[]) => {
-        setExpenses(fresh);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
-  };
+  // Auto-calculate: Amount = Quantity × Unit Price
+  const qty = quantity ? parseFloat(quantity) : 0;
+  const up = unitPrice ? parseFloat(unitPrice) : 0;
+  const isAutoCalc = qty > 0 && up > 0;
+  const computedAmount = isAutoCalc ? (qty * up).toFixed(2) : '';
 
-  // Always hydrate from the live API on mount — ignore server-rendered
-  // initialExpenses because they may be stale from SW cache.
+  // Mark hydrated after mount so we know we're on the client
   useEffect(() => {
-    fetchExpenses();
+    setHydrated(true);
   }, []);
+
+  const loadMore = useCallback(async () => {
+    setLoadingMore(true);
+    try {
+      const params = new URLSearchParams();
+      params.set('skip', String(expenses.length));
+      params.set('take', String(PAGE_SIZE));
+      if (filter !== 'ALL') params.set('category', filter);
+
+      const res = await fetch(`/api/admin/expenses?${params.toString()}`);
+      if (res.ok) {
+        const data = await res.json();
+        setExpenses((prev) => [...prev, ...data.expenses]);
+        setTotal(data.total);
+      }
+    } catch {
+      // silent fail — user can retry
+    }
+    setLoadingMore(false);
+  }, [expenses.length, filter]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const amt = parseFloat(amount);
+    const amt = isAutoCalc ? parseFloat(computedAmount) : parseFloat(amount);
     if (!description.trim() || isNaN(amt) || amt <= 0) {
       setMessage('❌ Enter a description and a valid positive amount.');
       return;
@@ -80,19 +110,23 @@ export default function ExpenseClient({ initialExpenses }: { initialExpenses: Ex
           category,
           description: description.trim(),
           amount: amt,
-          quantity: quantity ? parseFloat(quantity) : null,
+          quantity: qty || null,
           unit: unit || null,
           date,
         }),
       });
       if (res.ok) {
+        const created: Expense = await res.json();
         setDescription('');
         setAmount('');
         setQuantity('');
+        setUnitPrice('');
         setUnit('');
         setMessage('✅ Expense recorded.');
-        // Re-fetch from server to guarantee the list matches the DB
-        fetchExpenses();
+
+        // Optimistic: prepend to list, increment total
+        setExpenses((prev) => [created, ...prev]);
+        setTotal((prev) => prev + 1);
       } else {
         const err = await res.json().catch(() => ({}));
         setMessage(`❌ ${err.error || 'Failed to record expense.'}`);
@@ -106,15 +140,26 @@ export default function ExpenseClient({ initialExpenses }: { initialExpenses: Ex
   const remove = async (id: string) => {
     if (!confirm('Delete this expense?')) return;
     const res = await fetch(`/api/admin/expenses/${id}`, { method: 'DELETE' });
-    if (res.ok) setExpenses((prev) => prev.filter((e) => e.id !== id));
+    if (res.ok) {
+      setExpenses((prev) => prev.filter((e) => e.id !== id));
+      setTotal((prev) => prev - 1);
+    }
   };
 
   const filtered = filter === 'ALL' ? expenses : expenses.filter((e) => e.category === filter);
-  const total = filtered.reduce((s, e) => s + e.amount, 0);
+  const hasMore = expenses.length < total;
 
-  if (loading) {
+  // Show a lightweight skeleton while hydrating on slow devices
+  if (!hydrated) {
     return (
-      <div className="text-center py-12 text-gray-500">Loading expenses...</div>
+      <div className="space-y-3">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <div key={i} className="bg-white rounded-xl shadow p-4 animate-pulse">
+            <div className="h-4 bg-gray-200 rounded w-3/4 mb-2" />
+            <div className="h-3 bg-gray-100 rounded w-1/2" />
+          </div>
+        ))}
+      </div>
     );
   }
 
@@ -149,24 +194,49 @@ export default function ExpenseClient({ initialExpenses }: { initialExpenses: Ex
             className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-orange-500"
           />
         </div>
-        <div>
-          <label className="block text-xs font-medium text-gray-500 mb-1">Amount (₦)</label>
-          <input
-            type="number" min="0" step="0.01" value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            placeholder="0.00"
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-orange-500"
-          />
-        </div>
+
+        {/* Quantity + Unit Price = Auto Amount */}
         <div>
           <label className="block text-xs font-medium text-gray-500 mb-1">Quantity</label>
           <input
             type="number" min="0" step="0.01" value={quantity}
             onChange={(e) => setQuantity(e.target.value)}
-            placeholder="optional"
+            placeholder="e.g. 50"
             className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-orange-500"
           />
         </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-500 mb-1">Unit Price (₦)</label>
+          <input
+            type="number" min="0" step="0.01" value={unitPrice}
+            onChange={(e) => setUnitPrice(e.target.value)}
+            placeholder="price per unit"
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-orange-500"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-500 mb-1">
+            Amount (₦) {isAutoCalc && <span className="text-green-600 text-xs font-normal">auto</span>}
+          </label>
+          <input
+            type="number" min="0" step="0.01"
+            value={isAutoCalc ? computedAmount : amount}
+            onChange={(e) => { if (!isAutoCalc) setAmount(e.target.value); }}
+            placeholder="0.00"
+            readOnly={isAutoCalc}
+            className={`w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-orange-500 ${
+              isAutoCalc
+                ? 'bg-green-50 border-green-300 text-gray-900'
+                : 'border-gray-300 text-gray-900'
+            }`}
+          />
+          {isAutoCalc && (
+            <p className="text-xs text-green-700 mt-0.5">
+              {qty} × ₦{up.toFixed(2)} = ₦{computedAmount}
+            </p>
+          )}
+        </div>
+
         <div>
           <label className="block text-xs font-medium text-gray-500 mb-1">Unit</label>
           <input
@@ -213,7 +283,7 @@ export default function ExpenseClient({ initialExpenses }: { initialExpenses: Ex
           ))}
         </div>
         <div className="text-sm font-semibold text-gray-700">
-          Total: ₦{total.toFixed(2)}
+          Total: ₦{filtered.reduce((s, e) => s + e.amount, 0).toFixed(2)}
         </div>
       </div>
 
@@ -248,6 +318,19 @@ export default function ExpenseClient({ initialExpenses }: { initialExpenses: Ex
           </div>
         ))}
       </div>
+
+      {/* Load More */}
+      {hasMore && (
+        <div className="text-center mt-4">
+          <button
+            onClick={loadMore}
+            disabled={loadingMore}
+            className="px-5 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors"
+          >
+            {loadingMore ? 'Loading...' : `Load More (${expenses.length} of ${total})`}
+          </button>
+        </div>
+      )}
     </>
   );
 }

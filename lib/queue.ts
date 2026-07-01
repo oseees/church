@@ -1,21 +1,6 @@
 import { Queue, Worker, Job } from 'bullmq';
 import prisma from '@/lib/prisma';
 
-const REDIS_URL = process.env.UPSTASH_REDIS_REST_URL!;
-const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN!;
-
-const connection = { url: REDIS_URL, ...(REDIS_TOKEN ? { password: REDIS_TOKEN } : {}) };
-
-const queue = new Queue('wa-jobs', {
-  connection,
-  defaultJobOptions: {
-    attempts: 3,
-    backoff: { type: 'exponential', delay: 1000 },
-    removeOnComplete: 100,
-    removeOnFail: 500,
-  },
-});
-
 export interface WaJobData {
   type: 'wa_notification' | 'order_update' | 'statement_generate';
   phone: string;
@@ -30,8 +15,39 @@ export interface WaJobData {
   };
 }
 
+// ── Lazy Redis connection ──────────────────────────────────────────────────
+// The Queue and connection are only created on first use, so builds and
+// static page generation (where REDIS_URL isn't available) don't fail.
+
+let _queue: Queue | null = null;
+let _connection: { url: string; password?: string } | null = null;
+
+function getConnection() {
+  if (!_connection) {
+    const REDIS_URL = process.env.UPSTASH_REDIS_REST_URL!;
+    const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN!;
+    _connection = { url: REDIS_URL, ...(REDIS_TOKEN ? { password: REDIS_TOKEN } : {}) };
+  }
+  return _connection;
+}
+
+function getQueue(): Queue {
+  if (!_queue) {
+    _queue = new Queue('wa-jobs', {
+      connection: getConnection(),
+      defaultJobOptions: {
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 1000 },
+        removeOnComplete: 100,
+        removeOnFail: 500,
+      },
+    });
+  }
+  return _queue;
+}
+
 export async function enqueueJob(name: string, data: WaJobData): Promise<string> {
-  const job = await queue.add(name, data);
+  const job = await getQueue().add(name, data);
   return job.id!;
 }
 
@@ -78,7 +94,7 @@ export async function startWorker(): Promise<void> {
 
       console.log(`[queue] Job ${job.id} delivered to ${phone}`);
     },
-    { connection, concurrency: 5 }
+    { connection: getConnection(), concurrency: 5 }
   );
 
   console.log('[queue] Worker started');

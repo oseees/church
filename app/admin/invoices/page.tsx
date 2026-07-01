@@ -28,6 +28,7 @@ export default async function AdminInvoicesPage() {
     subtotal: Number(inv.subtotal),
     tax: Number(inv.tax),
     total: Number(inv.total),
+    totalCost: inv.items.reduce((s, it) => s + Number(it.cost), 0),
     status: inv.status,
     notes: inv.notes,
     items: inv.items.map((it) => ({
@@ -35,6 +36,7 @@ export default async function AdminInvoicesPage() {
       description: it.description,
       quantity: Number(it.quantity),
       unitPrice: Number(it.unitPrice),
+      cost: Number(it.cost),
       amount: Number(it.amount),
     })),
   }));
