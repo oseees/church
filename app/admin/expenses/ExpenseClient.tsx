@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 export type ExpenseCategory = 'FEED' | 'FEED_MATERIAL' | 'DRUG' | 'TRANSPORT' | 'SALARY' | 'OTHER';
 
@@ -45,6 +45,16 @@ export default function ExpenseClient({ initialExpenses }: { initialExpenses: Ex
   const [quantity, setQuantity] = useState('');
   const [unit, setUnit] = useState('');
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+
+  // Always hydrate from the live API on mount so the list reflects the
+  // true DB state, even if the page HTML was served from a stale
+  // service-worker cache.
+  useEffect(() => {
+    fetch('/api/admin/expenses', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((fresh: Expense[]) => setExpenses(fresh))
+      .catch(() => {});
+  }, []);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
