@@ -3,14 +3,14 @@ import './globals.css';
 import ServiceWorkerRegistration from './sw-register';
 
 export const metadata: Metadata = {
-  title: 'AI Reference Track Analyzer',
+  title: 'Church Farm Manager',
   description:
-    'Compare your mix to a professional reference track using AI-powered spectral analysis and loudness matching.',
+    'Track farm inputs, expenses, sales, and invoicing. Calculate profit and manage customers.',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
-    statusBarStyle: 'black-translucent',
-    title: 'Ref Analyzer',
+    statusBarStyle: 'default',
+    title: 'Farm Manager',
   },
   other: {
     'mobile-web-app-capable': 'yes',
@@ -18,7 +18,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: '#09090b',
+  themeColor: '#f97316',
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
@@ -31,7 +31,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en">
       <head>
         <link rel="apple-touch-icon" href="/icons/icon-192.png" />
         <link

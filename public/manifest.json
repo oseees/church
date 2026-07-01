@@ -1,8 +1,8 @@
 {
-  "name": "Church Chicken Sales",
-  "short_name": "Chicken Sales",
-  "description": "WhatsApp Chicken Sales & Balance Tracker",
-  "start_url": "/dashboard",
+  "name": "Church Farm Manager",
+  "short_name": "Farm Manager",
+  "description": "Track farm inputs, expenses, sales, invoicing & profitability",
+  "start_url": "/",
   "display": "standalone",
   "background_color": "#f9fafb",
   "theme_color": "#f97316",
