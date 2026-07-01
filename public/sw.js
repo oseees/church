@@ -1,4 +1,4 @@
-const CACHE_NAME = 'church-chicken-v1';
+const CACHE_NAME = 'church-chicken-v2';
 const OFFLINE_URL = '/dashboard';
 
 const PRECACHE_URLS = [
@@ -42,6 +42,15 @@ self.addEventListener('fetch', (event) => {
   // API routes: network-only (no caching for live data)
   if (url.pathname.startsWith('/api/')) {
     event.respondWith(fetch(request).catch(() => new Response('Offline', { status: 503 })));
+    return;
+  }
+
+  // Admin pages: never cache — always fetch fresh server-rendered HTML
+  // (caching these would show stale "No expenses recorded yet" after recording)
+  if (url.pathname.startsWith('/admin')) {
+    event.respondWith(
+      fetch(request).catch(() => caches.match(OFFLINE_URL))
+    );
     return;
   }
 

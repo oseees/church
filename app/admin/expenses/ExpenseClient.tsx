@@ -75,6 +75,12 @@ export default function ExpenseClient({ initialExpenses }: { initialExpenses: Ex
       setQuantity('');
       setUnit('');
       setMessage('✅ Expense recorded.');
+      // Re-fetch from server to guarantee the list matches the DB
+      // (guards against stale state / cached page HTML).
+      fetch('/api/admin/expenses', { cache: 'no-store' })
+        .then((r) => (r.ok ? r.json() : []))
+        .then((fresh: Expense[]) => setExpenses(fresh))
+        .catch(() => {});
     } else {
       const err = await res.json().catch(() => ({}));
       setMessage(`❌ ${err.error || 'Failed to record expense.'}`);
