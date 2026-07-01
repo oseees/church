@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 export type InvoiceStatus = 'DRAFT' | 'SENT' | 'PAID' | 'OVERDUE' | 'CANCELLED';
 
@@ -48,6 +48,15 @@ export default function InvoiceClient({
   const [invoices, setInvoices] = useState(initialInvoices);
   const [showForm, setShowForm] = useState(false);
   const [message, setMessage] = useState('');
+
+  // Always hydrate from the live API on mount so the list reflects the
+  // true DB state, even if the page HTML was served from a stale cache.
+  useEffect(() => {
+    fetch('/api/admin/invoices', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((fresh: Invoice[]) => setInvoices(fresh))
+      .catch(() => {});
+  }, []);
 
   // form
   const [customerId, setCustomerId] = useState('');
@@ -117,6 +126,11 @@ export default function InvoiceClient({
       setNotes('');
       setItems([{ description: '', quantity: 1, unitPrice: 0, amount: 0 }]);
       setMessage('✅ Invoice created.');
+      // Re-fetch from server to guarantee the list matches the DB
+      fetch('/api/admin/invoices', { cache: 'no-store' })
+        .then((r) => (r.ok ? r.json() : []))
+        .then((fresh: Invoice[]) => setInvoices(fresh))
+        .catch(() => {});
     } else {
       const err = await res.json().catch(() => ({}));
       setMessage(`❌ ${err.error || 'Failed to create invoice.'}`);
@@ -130,7 +144,11 @@ export default function InvoiceClient({
       body: JSON.stringify({ status }),
     });
     if (res.ok) {
-      setInvoices((prev) => prev.map((inv) => (inv.id === id ? { ...inv, status } : inv)));
+      // Re-fetch to ensure consistency with server state
+      fetch('/api/admin/invoices', { cache: 'no-store' })
+        .then((r) => (r.ok ? r.json() : []))
+        .then((fresh: Invoice[]) => setInvoices(fresh))
+        .catch(() => {});
     }
   };
 

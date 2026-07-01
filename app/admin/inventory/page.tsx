@@ -16,9 +16,16 @@ export default function AdminInventoryPage() {
   const [updating, setUpdating] = useState<string | null>(null);
   const [editValues, setEditValues] = useState<Record<string, string>>({});
   const [message, setMessage] = useState('');
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [adding, setAdding] = useState(false);
+
+  // Add product form state
+  const [newName, setNewName] = useState('');
+  const [newPrice, setNewPrice] = useState('');
+  const [newStock, setNewStock] = useState('');
 
   const fetchProducts = useCallback(async () => {
-    const res = await fetch('/api/products');
+    const res = await fetch('/api/products', { cache: 'no-store' });
     if (res.ok) {
       const data = await res.json();
       setProducts(data);
@@ -77,6 +84,48 @@ export default function AdminInventoryPage() {
     if (e.key === 'Enter') updateStock(id);
   };
 
+  const addProduct = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const price = parseFloat(newPrice);
+    const stock = parseInt(newStock, 10);
+
+    if (!newName.trim()) {
+      setMessage('❌ Product name is required.');
+      return;
+    }
+    if (isNaN(price) || price <= 0) {
+      setMessage('❌ Enter a valid price per kg.');
+      return;
+    }
+    if (isNaN(stock) || stock < 0) {
+      setMessage('❌ Enter a valid stock quantity.');
+      return;
+    }
+
+    setAdding(true);
+    setMessage('');
+
+    const res = await fetch('/api/products', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: newName.trim(), pricePerKg: price, stock }),
+    });
+
+    if (res.ok) {
+      const created = await res.json();
+      setProducts((prev) => [...prev, created]);
+      setNewName('');
+      setNewPrice('');
+      setNewStock('');
+      setShowAddForm(false);
+      setMessage('✅ Product added successfully.');
+    } else {
+      const err = await res.json().catch(() => ({}));
+      setMessage(`❌ ${err.error || 'Failed to add product.'}`);
+    }
+    setAdding(false);
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 p-4 md:p-6 max-w-6xl mx-auto">
@@ -88,7 +137,7 @@ export default function AdminInventoryPage() {
   return (
     <div className="min-h-screen bg-gray-50 p-4 md:p-6 max-w-6xl mx-auto">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Inventory</h1>
+        <h1 className="text-2xl font-bold text-gray-900">📦 Inventory</h1>
         <a
           href="/admin"
           className="text-sm text-gray-500 hover:text-gray-700"
@@ -101,6 +150,56 @@ export default function AdminInventoryPage() {
         <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-sm text-yellow-800">
           {message}
         </div>
+      )}
+
+      {/* Add Product */}
+      <div className="mb-4">
+        <button
+          onClick={() => setShowAddForm((s) => !s)}
+          className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors"
+        >
+          {showAddForm ? 'Cancel' : '+ Add Product'}
+        </button>
+      </div>
+
+      {showAddForm && (
+        <form onSubmit={addProduct} className="bg-white rounded-xl shadow p-5 mb-6 grid grid-cols-1 md:grid-cols-4 gap-3">
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Product Name</label>
+            <input
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              placeholder="e.g. Chicken Wings"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-orange-500"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Price per Kg (₦)</label>
+            <input
+              type="number" min="0" step="0.01" value={newPrice}
+              onChange={(e) => setNewPrice(e.target.value)}
+              placeholder="0.00"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-orange-500"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Initial Stock (kg)</label>
+            <input
+              type="number" min="0" step="1" value={newStock}
+              onChange={(e) => setNewStock(e.target.value)}
+              placeholder="0"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-orange-500"
+            />
+          </div>
+          <div className="flex items-end">
+            <button
+              type="submit" disabled={adding}
+              className="w-full px-4 py-2 bg-orange-500 text-white rounded-lg text-sm font-medium hover:bg-orange-600 disabled:opacity-50 transition-colors"
+            >
+              {adding ? 'Adding...' : 'Save Product'}
+            </button>
+          </div>
+        </form>
       )}
 
       {/* Mobile Card View */}
@@ -116,7 +215,7 @@ export default function AdminInventoryPage() {
               <div>
                 <p className="font-medium text-gray-900">{p.name}</p>
                 <p className="text-sm text-gray-500">
-                  ${Number(p.pricePerKg).toFixed(2)}/kg
+                  ₦{Number(p.pricePerKg).toFixed(2)}/kg
                 </p>
               </div>
               <span
@@ -183,7 +282,7 @@ export default function AdminInventoryPage() {
                     )}
                   </td>
                   <td className="px-4 py-3">
-                    ${Number(p.pricePerKg).toFixed(2)}
+                    ₦{Number(p.pricePerKg).toFixed(2)}
                   </td>
                   <td className="px-4 py-3">
                     <span

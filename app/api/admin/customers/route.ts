@@ -86,3 +86,42 @@ export async function GET(request: NextRequest) {
     }))
   );
 }
+
+export async function POST(request: NextRequest) {
+  const body = await request.json();
+  const { phone, name, creditLimit } = body;
+
+  if (!phone || typeof phone !== 'string' || !phone.trim()) {
+    return NextResponse.json({ error: 'Phone number is required' }, { status: 400 });
+  }
+  if (!name || typeof name !== 'string' || !name.trim()) {
+    return NextResponse.json({ error: 'Customer name is required' }, { status: 400 });
+  }
+
+  // Check for duplicate phone
+  const existing = await prisma.customer.findUnique({ where: { phone: phone.trim() } });
+  if (existing) {
+    return NextResponse.json({ error: 'A customer with this phone number already exists' }, { status: 409 });
+  }
+
+  const limit = typeof creditLimit === 'number' && creditLimit >= 0 ? creditLimit : 0;
+
+  const customer = await prisma.customer.create({
+    data: {
+      phone: phone.trim(),
+      name: name.trim(),
+      creditLimit: limit,
+    },
+  });
+
+  return NextResponse.json({
+    id: customer.id,
+    phone: customer.phone,
+    name: customer.name,
+    balance: Number(customer.balance),
+    creditLimit: Number(customer.creditLimit),
+    totalOrders: 0,
+    totalTransactions: 0,
+    lastOrderAt: null,
+  }, { status: 201 });
+}

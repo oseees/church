@@ -25,13 +25,21 @@ export default function AdminCustomersPage() {
   const [search, setSearch] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [message, setMessage] = useState('');
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [adding, setAdding] = useState(false);
+
+  // Add customer form state
+  const [newPhone, setNewPhone] = useState('');
+  const [newName, setNewName] = useState('');
+  const [newCreditLimit, setNewCreditLimit] = useState('');
 
   const fetchCustomers = useCallback(async (searchTerm?: string) => {
     setLoading(true);
     const url = searchTerm
       ? `/api/admin/customers?search=${encodeURIComponent(searchTerm)}`
       : '/api/admin/customers';
-    const res = await fetch(url);
+    const res = await fetch(url, { cache: 'no-store' });
     if (res.ok) setCustomers(await res.json());
     setLoading(false);
   }, []);
@@ -51,6 +59,49 @@ export default function AdminCustomersPage() {
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     fetchCustomers(search);
+  };
+
+  const addCustomer = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const limit = parseFloat(newCreditLimit) || 0;
+
+    if (!newPhone.trim()) {
+      setMessage('❌ Phone number is required.');
+      return;
+    }
+    if (!newName.trim()) {
+      setMessage('❌ Customer name is required.');
+      return;
+    }
+
+    setAdding(true);
+    setMessage('');
+
+    const res = await fetch('/api/admin/customers', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        phone: newPhone.trim(),
+        name: newName.trim(),
+        creditLimit: limit,
+      }),
+    });
+
+    if (res.ok) {
+      const created = await res.json();
+      setCustomers((prev) => [created, ...prev]);
+      setNewPhone('');
+      setNewName('');
+      setNewCreditLimit('');
+      setShowAddForm(false);
+      setMessage('✅ Customer added successfully.');
+      // Refresh to get server-computed data
+      fetchCustomers();
+    } else {
+      const err = await res.json().catch(() => ({}));
+      setMessage(`❌ ${err.error || 'Failed to add customer.'}`);
+    }
+    setAdding(false);
   };
 
   const formatBalance = (amount: number) => {
@@ -75,7 +126,7 @@ export default function AdminCustomersPage() {
       </div>
 
       {/* Search */}
-      <form onSubmit={handleSearch} className="mb-6">
+      <form onSubmit={handleSearch} className="mb-4">
         <div className="flex gap-2">
           <input
             type="text"
@@ -101,6 +152,62 @@ export default function AdminCustomersPage() {
           )}
         </div>
       </form>
+
+      {message && (
+        <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-sm text-yellow-800">
+          {message}
+        </div>
+      )}
+
+      {/* Add Customer */}
+      <div className="mb-4">
+        <button
+          onClick={() => setShowAddForm((s) => !s)}
+          className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors"
+        >
+          {showAddForm ? 'Cancel' : '+ Add Customer'}
+        </button>
+      </div>
+
+      {showAddForm && (
+        <form onSubmit={addCustomer} className="bg-white rounded-xl shadow p-5 mb-6 grid grid-cols-1 md:grid-cols-4 gap-3">
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Phone Number</label>
+            <input
+              value={newPhone}
+              onChange={(e) => setNewPhone(e.target.value)}
+              placeholder="+2348012345678"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-orange-500"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Name</label>
+            <input
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              placeholder="Customer name"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-orange-500"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Credit Limit (₦)</label>
+            <input
+              type="number" min="0" step="0.01" value={newCreditLimit}
+              onChange={(e) => setNewCreditLimit(e.target.value)}
+              placeholder="0.00"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-orange-500"
+            />
+          </div>
+          <div className="flex items-end">
+            <button
+              type="submit" disabled={adding}
+              className="w-full px-4 py-2 bg-orange-500 text-white rounded-lg text-sm font-medium hover:bg-orange-600 disabled:opacity-50 transition-colors"
+            >
+              {adding ? 'Adding...' : 'Save Customer'}
+            </button>
+          </div>
+        </form>
+      )}
 
       {/* Customer List */}
       {loading ? (
